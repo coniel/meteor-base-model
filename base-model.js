@@ -30,7 +30,7 @@ var diff = function(a,b) {
 
 /*globals BaseModel:true*/
 
-const BaseModel = function(){};
+BaseModel = function(){};
 
 BaseModel.createEmpty = function (_id) {
     return new this({_id:_id});
@@ -205,5 +205,3 @@ BaseModel.prototype.remove = function(callback) {
         Meteor.call(this._collection._name + ".remove", this._id, callback);
     }
 };
-
-export default BaseModel;
