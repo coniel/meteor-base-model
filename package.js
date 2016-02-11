@@ -1,6 +1,6 @@
 Package.describe({
   name: 'coniel:base-model',
-  version: '0.0.1',
+  version: '0.0.2',
   // Brief, one-line summary of the package.
   summary: "A model for all other models to inherit from",
   // URL to the Git repository containing the source code for this package.
