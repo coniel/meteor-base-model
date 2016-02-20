@@ -60,7 +60,7 @@ BaseModel.extend = function() {
     return child;
 };
 
-BaseModel.extendAndSetupCollection = function(collectionName) {
+BaseModel.extendAndSetupCollection = function(collectionName, options) {
     var model = this.extend();
 
     model.collection = model.prototype._collection = new Mongo.Collection(collectionName, {
@@ -74,6 +74,42 @@ BaseModel.extendAndSetupCollection = function(collectionName) {
         update() { return true; },
         remove() { return true; }
     });
+
+    var createdAtKey = 'createdAt';
+    var updatedAtKey = 'updatedAt';
+
+    if (typeof options !== 'undefined') {
+        if (typeof options.createdTimestamp !== 'undefined')
+            createdAtKey = options.createdTimestamp;
+        if (typeof options.updatedTimestamp !== 'undefined')
+            updatedAtKey = options.updatedTimestamp;
+    }
+
+    var schema = {};
+    if (createdAtKey) {
+        schema[createdAtKey] = {
+            type: Date,
+            autoValue: function () {
+                if (this.isInsert) {
+                    return new Date();
+                }
+            },
+            denyUpdate: true
+        };
+    }
+
+    if (updatedAtKey) {
+        schema[updatedAtKey] = {
+            type: Date,
+            autoValue: function () {
+                if (this.isUpdate || this.isUpsert) {
+                    return new Date();
+                }
+            }
+        };
+    }
+
+    model.attachSchema(schema);
 
     Meteor[collectionName] = model.collection;
 
