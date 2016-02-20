@@ -77,12 +77,18 @@ BaseModel.extendAndSetupCollection = function(collectionName, options) {
 
     var createdAtKey = 'createdAt';
     var updatedAtKey = 'updatedAt';
+    var userId = false;
 
     if (typeof options !== 'undefined') {
         if (typeof options.createdTimestamp !== 'undefined')
             createdAtKey = options.createdTimestamp;
         if (typeof options.updatedTimestamp !== 'undefined')
             updatedAtKey = options.updatedTimestamp;
+        if (options.userId && typeof options.userId === 'boolean') {
+            userId = 'userId';
+        } else if (typeof options.userId === 'string') {
+            userId = options.userId;
+        }
     }
 
     var schema = {};
@@ -109,9 +115,26 @@ BaseModel.extendAndSetupCollection = function(collectionName, options) {
         };
     }
 
+    if (userId) {
+        schema[userId] = {
+            type: String,
+            regEx: SimpleSchema.RegEx.Id,
+            autoValue: function () {
+                if (this.isInsert) {
+                    return Meteor.userId();
+                }
+            },
+            denyUpdate: (options && options.allowUserIdUpdate)? !options.denyUserIdUpdate : true
+        };
+    }
+
     model.attachSchema(schema);
 
     if (options && options.softRemovable) {
+        model.collection.attachBehaviour('softRemovable');
+    }
+
+    if (options && options.userId) {
         model.collection.attachBehaviour('softRemovable');
     }
 
