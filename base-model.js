@@ -69,6 +69,12 @@ BaseModel.extendAndSetupCollection = function(collectionName) {
         }
     });
 
+    model.collection.deny({
+        insert() { return true; },
+        update() { return true; },
+        remove() { return true; }
+    });
+
     Meteor[collectionName] = model.collection;
 
     return model;
