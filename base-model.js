@@ -153,9 +153,9 @@ BaseModel.prototype._checkCollectionExists = function() {
 };
 
 BaseModel.prototype.getCollectionName = function() {
-    this._checkCollectionExists()
+    this._checkCollectionExists();
     return this._collection._name;
-}
+};
 
 BaseModel.prototype.checkOwnership = function() {
     return this.userId === Meteor.userId();
