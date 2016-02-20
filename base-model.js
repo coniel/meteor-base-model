@@ -32,6 +32,8 @@ var diff = function(a,b) {
 
 BaseModel = function(){};
 
+BaseModel.methods = {};
+
 BaseModel.createEmpty = function (_id) {
     return new this({_id:_id});
 };
@@ -119,7 +121,7 @@ BaseModel.getSubSchema = function(keys, modifiers) {
     return new SimpleSchema(subSchema);
 };
 
-BaseModel.methods = function(methodMap) {
+BaseModel.instanceMethods = function(methodMap) {
     var self = this;
     if(_.isObject(methodMap)){
         _.each(methodMap, function(method, name){
