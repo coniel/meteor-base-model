@@ -96,7 +96,7 @@ BaseModel.getSubSchema = function(keys, modifiers) {
 
     var subSchema = {};
 
-    _.each(keys, (key) => {
+    _.each(keys, function(key) {
         var keyName = key;
 
         if (modifiers && modifiers.renameKeys && modifiers.renameKeys[key]) {
