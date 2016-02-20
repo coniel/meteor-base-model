@@ -17,7 +17,8 @@ Package.onUse(function(api) {
 
     api.use([
         "aldeed:simple-schema@1.5.3",
-        "aldeed:collection2@2.8.0"
+        "aldeed:collection2@2.8.0",
+        "zimme:collection-softremovable@1.0.5"
     ]);
 
     api.imply(["meteor", "mongo", "underscore"]);

@@ -111,6 +111,10 @@ BaseModel.extendAndSetupCollection = function(collectionName, options) {
 
     model.attachSchema(schema);
 
+    if (options && options.softRemovable) {
+        model.collection.attachBehaviour('softRemovable');
+    }
+
     Meteor[collectionName] = model.collection;
 
     return model;
