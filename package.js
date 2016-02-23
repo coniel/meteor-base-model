@@ -1,6 +1,6 @@
 Package.describe({
   name: 'coniel:base-model',
-  version: '0.1.0',
+  version: '0.2.0',
   // Brief, one-line summary of the package.
   summary: "A model for all other models to inherit from",
   // URL to the Git repository containing the source code for this package.
@@ -11,9 +11,9 @@ Package.describe({
 });
 
 Package.onUse(function(api) {
-  api.versionsFrom("1.0.2.1");
+  api.versionsFrom("1.2");
 
-    api.use(["meteor", "mongo", "underscore"]);
+    api.use(["meteor", "mongo", "underscore", "ecmascript", "es5-shim"]);
 
     api.use([
         "aldeed:simple-schema@1.5.3",
