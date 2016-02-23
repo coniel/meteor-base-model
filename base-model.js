@@ -102,7 +102,13 @@ BaseModel.extendAndSetupCollection = function (collectionName, options) {
         }
     }
 
-    var schema = {};
+    var schema = {
+        _id: {
+            type: String,
+            regEx:SimpleSchema.RegEx.Id
+        }
+    };
+
     if (createdAtKey) {
         schema[createdAtKey] = {
             type: Date,
