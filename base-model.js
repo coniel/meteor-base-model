@@ -1,8 +1,7 @@
 //Object.create shim
 if (typeof Object.create != 'function') {
-    Object.create = (function () {
-        var thing = function () {
-        };
+    Object.create = (function() {
+        var thing = function() {};
         return function (prototype) {
             if (arguments.length > 1) {
                 throw Error('Second argument not supported');
@@ -18,62 +17,269 @@ if (typeof Object.create != 'function') {
     })();
 }
 
-var diff = function (a, b) {
-    var keys = _.map(a, function (v, k) {
-        if (b[k] === v) {
+var diff = function(a,b) {
+    var keys = _.map(a, function(v, k){
+        if(b[k] === v){
             return k;
         }
     });
     return _.omit(a, keys);
 };
 
+var extend = function(reciever, provider) {
+    for(prop in provider){
+        if(provider.hasOwnProperty(prop)){
+            reciever[prop] = provider[prop];
+        }
+    }
+};
 
 /*globals BaseModel:true*/
 
-BaseModel = function () {
-};
+BaseModel = function(){};
 
-BaseModel.methods = {};
+BaseModel.extend = function() {
+    var Model = function(document) {
+        extend(this, document);
+        this._document = document;
+    };
 
-BaseModel.createEmpty = function (_id) {
-    return new this({_id: _id});
-};
+    Model._meteorMethods = Model.prototype._meteorMethods = {};
 
-BaseModel.extend = function () {
-    var child = function (document) {
-        _.extend(this, document);
-        if (!this._document) {
-            this._document = document;
+    Model.createEmpty = function (_id) {
+        return new this({_id:_id});
+    };
+    Model.appendSchema = function(schemaObject) {
+        var schema = new SimpleSchema(schemaObject);
+        var collection = this.prototype.getCollection();
+
+        if(collection){
+            collection.attachSchema(schema);
+        }else{
+            throw new Error("Can't append schema to non existent collection. Please use extendAndSetupCollection() to create your models");
         }
     };
 
-    //add Static properties and methods
-    _.extend(child, this);
+    Model.getSchema = function () {
+        return this.prototype.getCollection()._c2._simpleSchema;
+    };
 
-    //prototypal inheritence
-    child.prototype = Object.create(this.prototype);
-    child.prototype.constructor = child;
+    Model.getSchemaKey = function (key) {
+        return this.prototype.getCollection()._c2._simpleSchema._schema[key];
+    };
 
-    //access to parent
-    child.prototype._parent_ = this;
-    child.prototype._super_ = this.prototype;
+    Model.getSchemaKeyAsOptional = function (key) {
+        var schemaKeyValue = this.prototype.getCollection()._c2._simpleSchema._schema[key];
+        schemaKeyValue.optional = true;
+        return schemaKeyValue;
+    };
 
-    return child;
+    Model.getSubSchema = function (keys, modifiers, returnValidator) {
+
+        var subSchema = {};
+
+        _.each(keys, (key) => {
+            var keyName = key;
+
+            if (modifiers && modifiers.renameKeys && modifiers.renameKeys[key]) {
+                keyName = modifiers.renameKeys[key];
+            }
+
+            var keySchema = _.clone(this.prototype.getCollection()._c2._simpleSchema._schema[key]);
+
+            if (modifiers && modifiers.modifySchema && modifiers.modifySchema[key]) {
+                _.extend(keySchema, modifiers.modifySchema[key]);
+            }
+
+            subSchema[keyName] = keySchema;
+        });
+
+        if (modifiers && modifiers.extend) {
+            _.extend(subSchema, modifiers.extend);
+        }
+
+        if (returnValidator) {
+            return new SimpleSchema(subSchema).validator();
+        } else {
+            return new SimpleSchema(subSchema);
+        }
+    };
+
+    Model.methods = function(methodMap) {
+        var self = this;
+        if(_.isObject(methodMap)){
+            _.each(methodMap, function(method, name){
+                if(_.isFunction(method)){
+                    if(!self.prototype[name]){
+                        self.prototype[name] = method;
+                    }else{
+                        throw new Meteor.Error("existent-method", "The method "+name+" already exists.");
+                    }
+                }
+            });
+        }
+    };
+
+    Model.meteorMethods = function (methodMap) {
+        var self = this;
+        if (_.isObject(methodMap)) {
+            _.each(methodMap, (method, name) => {
+                if (_.isObject(method)) {
+                    if (!self._meteorMethods[name] && !self.prototype._meteorMethods[name]) {
+                        self.prototype._meteorMethods[name] = method;
+                        self._meteorMethods[name] = method;
+                    } else {
+                        throw new Meteor.Error("existent-method", "The meteor method " + name + " already exists.");
+                    }
+                }
+            });
+        }
+    };
+
+    Model.prototype._getSchema = function() {
+        var schema = Meteor._get(this.getCollection(), "_c2", "_simpleSchema");
+        if(schema){
+            return schema;
+        }else{
+            throw new Meteor.Error("noSchema", "You don't have a schema defined for " + this.getCollectionName());
+        }
+
+    };
+
+    Model.prototype._checkCollectionExists = function() {
+        if(!this.getCollection()) {
+            throw new Error("No collection found. Pleas use extendAndSetupCollection() to create your models");
+        }
+    };
+
+    Model.prototype.getCollectionName = function() {
+        this._checkCollectionExists()
+        return this.getCollection()._name;
+    };
+
+    Model.prototype.checkOwnership = function() {
+        return this.userId === Meteor.userId();
+    };
+
+    Model.prototype.save = function () {
+        this._checkCollectionExists();
+        var obj = {};
+        var schema = this._getSchema();
+
+        _.each(this, (value, key) => {
+            if (key !== "_document") {
+                obj[key] = value;
+            }
+        });
+
+        if (this._id) {
+            obj = diff(obj, this._document);
+            delete obj.createdAt;
+            return this._meteorMethods.update.callPromise({_id: this._id, doc: obj});
+        } else {
+            if (Meteor.isClient && schema) {
+                obj = schema.clean(obj);
+            }
+
+            var promise = this._meteorMethods.insert.callPromise({doc: obj});
+            promise.then((result) => {
+                this._id = result;
+            });
+            return promise;
+        }
+    };
+
+    Model.prototype.update = function (obj, callback) {
+        if (this._id) {
+            this._checkCollectionExists();
+            delete obj.createdAt;
+            return this._meteorMethods.update.callPromise({_id: this._id, doc: obj});
+        }
+    };
+
+    Model.prototype._setProps = function(key, value, validationPathOnly) {
+        var current;
+        var level = this;
+        var steps = key.split(".");
+        var last = steps.pop();
+        var set = {};
+        var currentSet = set;
+
+        while(current = steps.shift()){
+            if(!validationPathOnly){
+                if(level[current]){
+                    if(!_.isObject(level[current])){
+                        throw new Meteor.Error("PropertyNotObject", current + " of " + key + " is not an object");
+                    }
+                }else{
+                    level[current] = {};
+                }
+
+                level = level[current];
+            }
+            currentSet = currentSet[current] = {};
+        }
+
+        if(!validationPathOnly) { level[last] = value; }
+
+        currentSet[last] = value;
+
+        return set;
+    };
+
+
+    Model.prototype._updateLocal = function(modifier) {
+        this.getCollection()._collection.update(this._id, modifier);
+    };
+
+    Model.prototype.set = function(key, value) {
+        var context = this._getSchema().newContext();
+        var obj = {};
+
+        obj.$set = this._setProps(key, value, true);
+
+        if(context.validate(obj, {modifier:true})){
+            obj.$set = this._setProps(key, value);
+            this[key] = value;
+
+            if(Meteor.isClient){
+                this._id && this._updateLocal(obj);
+            }
+        }else{
+            throw new Meteor.Error(context.keyErrorMessage(key));
+        }
+        return this;
+    };
+
+    Model.prototype.remove = function (callback) {
+        if (this._id) {
+            this._checkCollectionExists();
+            return this._meteorMethods.remove.callPromise({_id: this._id});
+        }
+    };
+
+    return Model;
 };
 
-BaseModel.extendAndSetupCollection = function (collectionName, options) {
+BaseModel.extendAndSetupCollection = function(collectionName, options) {
+    var collectionOptions = {};
     var model = this.extend();
 
-    var collection = model.collection = model.prototype._collection = new Mongo.Collection(collectionName, {
-        transform: function (document) {
-            return new model(document);
-        }
-    });
+    if (!options)
+        options = {};
 
-    model.prototype.getCollection = function () {
+    if(!options.noTransform){
+        collectionOptions.transform = function(document){
+            return new model(document);
+        };
+    }
+
+    var collection = model.collection = new Mongo.Collection(collectionName, collectionOptions);
+    model.prototype.getCollection = function() {
         return collection;
     };
 
+    // Deny all client side operations
     model.collection.deny({
         insert: function () {
             return true;
@@ -86,6 +292,7 @@ BaseModel.extendAndSetupCollection = function (collectionName, options) {
         }
     });
 
+    // Create default schema for collection
     var createdAtKey = 'createdAt';
     var updatedAtKey = 'updatedAt';
     var userId = false;
@@ -105,7 +312,7 @@ BaseModel.extendAndSetupCollection = function (collectionName, options) {
     var schema = {
         _id: {
             type: String,
-            regEx:SimpleSchema.RegEx.Id
+            regEx: SimpleSchema.RegEx.Id
         }
     };
 
@@ -124,6 +331,7 @@ BaseModel.extendAndSetupCollection = function (collectionName, options) {
     if (updatedAtKey) {
         schema[updatedAtKey] = {
             type: Date,
+            optional: true,
             autoValue: function () {
                 if (this.isUpdate || this.isUpsert) {
                     return new Date();
@@ -147,10 +355,12 @@ BaseModel.extendAndSetupCollection = function (collectionName, options) {
 
     model.appendSchema(schema);
 
+    // Make soft removable (if specified in options)
     if (options && options.softRemovable) {
         model.collection.attachBehaviour('softRemovable');
     }
 
+    // Add userId schema key (if specified in options)
     if (options && options.userId) {
         model.collection.attachBehaviour('softRemovable');
     }
@@ -158,142 +368,4 @@ BaseModel.extendAndSetupCollection = function (collectionName, options) {
     Meteor[collectionName] = model.collection;
 
     return model;
-};
-
-BaseModel.appendSchema = function (schemaObject) {
-    var schema = new SimpleSchema(schemaObject);
-    var collection = this.prototype._collection;
-
-    if (collection) {
-        collection.attachSchema(schema);
-    } else {
-        throw new Error("Can't append schema to non existent collection. Either use extendAndSetupCollection() or assign a collection to Model.prototype._collection");
-    }
-};
-
-BaseModel.getSchema = function () {
-    return this.prototype._collection._c2._simpleSchema;
-};
-
-BaseModel.getSchemaKey = function (key) {
-    return this.prototype._collection._c2._simpleSchema._schema[key];
-};
-
-BaseModel.getSubSchema = function (keys, modifiers, returnValidator) {
-
-    var subSchema = {};
-
-    _.each(keys, (key) => {
-        var keyName = key;
-
-        if (modifiers && modifiers.renameKeys && modifiers.renameKeys[key]) {
-            keyName = modifiers.renameKeys[key];
-        }
-
-        var keySchema = _.clone(this.prototype._collection._c2._simpleSchema._schema[key]);
-
-        if (modifiers && modifiers.modifySchema && modifiers.modifySchema[key]) {
-            _.extend(keySchema, modifiers.modifySchema[key]);
-        }
-
-        subSchema[keyName] = keySchema;
-    });
-
-    if (modifiers && modifiers.extendSchema) {
-        _.extend(subSchema, modifiers.extendSchema);
-    }
-
-    if (returnValidator) {
-        return new SimpleSchema(subSchema).validator();
-    } else {
-        return new SimpleSchema(subSchema);
-    }
-};
-
-BaseModel.instanceMethods = function (methodMap) {
-    var self = this;
-    if (_.isObject(methodMap)) {
-        _.each(methodMap, (method, name) => {
-            if (_.isFunction(method)) {
-                if (!self.prototype[name]) {
-                    self.prototype[name] = method;
-                } else {
-                    throw new Meteor.Error("existent-method", "The method " + name + " already exists.");
-                }
-            }
-        });
-    }
-};
-
-BaseModel.prototype._getSchema = function () {
-    return this._collection._c2._simpleSchema;
-};
-
-BaseModel.prototype._checkCollectionExists = function () {
-    if (!this._collection) {
-        throw new Error("No collection found. Either use extendAndSetupCollection() or assign a collection to Model.prototype._collection");
-    }
-};
-
-BaseModel.prototype.getCollectionName = function () {
-    this._checkCollectionExists();
-    return this._collection._name;
-};
-
-BaseModel.prototype.checkOwnership = function () {
-    return this.userId === Meteor.userId();
-};
-
-BaseModel.prototype.save = function () {
-    this._checkCollectionExists();
-    var obj = {};
-    var schema = this._getSchema();
-
-    _.each(this, (value, key) => {
-        if (key !== "_document") {
-            obj[key] = value;
-        }
-    });
-
-    if (this._id) {
-        obj = diff(obj, this._document);
-        delete obj.createdAt;
-        return this.methods[this._collection._name + ".update"].callPromise({id: this._id, doc: obj});
-    } else {
-        if (Meteor.isClient && schema) {
-            obj = schema.clean(obj);
-        }
-        var promise = this.methods[this._collection._name + ".insert"].callPromise({doc: obj});
-        promise.then((result) => {
-            this._id = result;
-        });
-        return promise;
-    }
-};
-
-BaseModel.prototype.update = function (modifier, callback) {
-    if (this._id) {
-        this._checkCollectionExists();
-        delete modifier.createdAt;
-        Meteor.call(this._collection._name + ".update", this._id, modifier, callback);
-    }
-};
-
-BaseModel.prototype._updateLocal = function (modifier) {
-    this._collection._collection.update(this._id, modifier);
-};
-
-BaseModel.prototype.set = function (key, value) {
-    var obj = {};
-    obj[key] = value;
-    this[key] = value;
-    this._id && this._updateLocal({$set: obj});
-    return this;
-};
-
-BaseModel.prototype.remove = function (callback) {
-    if (this._id) {
-        this._checkCollectionExists();
-        Meteor.call(this._collection._name + ".remove", this._id, callback);
-    }
 };
