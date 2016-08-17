@@ -10,7 +10,7 @@ var _messageBox2 = _interopRequireDefault(_messageBox);
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-_simplSchema2.default.extendOptions(['index', 'unique', 'denyInsert', 'denyUpdate']);
+_simplSchema2.default.extendOptions(['index', 'unique', 'denyInsert', 'denyUpdate', 'placeholder', 'label']);
 
 _messageBox2.default.defaults({ Untrusted: "Inserts/Updates from untrusted code not supported" });
 
