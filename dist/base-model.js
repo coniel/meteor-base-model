@@ -81,7 +81,7 @@ BaseModel.extend = function () {
     };
 
     Model.getSchemaKeyAsOptional = function (key) {
-        var schemaKeyValue = this.prototype.getCollection()._c2._simpleSchema._schema[key];
+        var schemaKeyValue = _.clone(this.prototype.getCollection()._c2._simpleSchema._schema[key]);
         schemaKeyValue.optional = true;
         return schemaKeyValue;
     };
@@ -114,7 +114,7 @@ BaseModel.extend = function () {
         if (returnValidator) {
             return new _simplSchema2.default(subSchema).validator();
         } else {
-            return new _simplSchema2.default(subSchema);
+            return new _simplSchema2.default(subSchema, { requiredByDefault: true });
         }
     };
 
