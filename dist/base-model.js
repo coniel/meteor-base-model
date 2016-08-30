@@ -41,7 +41,7 @@ var diff = function diff(a, b) {
 };
 
 var extend = function extend(reciever, provider) {
-    for (prop in provider) {
+    for (var prop in provider) {
         if (provider.hasOwnProperty(prop)) {
             reciever[prop] = provider[prop];
         }
@@ -61,8 +61,7 @@ BaseModel.extend = function () {
     Model.createEmpty = function (_id) {
         return new this({ _id: _id });
     };
-    Model.appendSchema = function (schemaObject) {
-        var schema = new _simplSchema2.default(schemaObject);
+    Model.appendSchema = function (schema) {
         var collection = this.prototype.getCollection();
 
         if (collection) {
